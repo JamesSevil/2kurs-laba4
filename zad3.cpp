@@ -30,7 +30,7 @@ public:
         unique_lock<mutex> lock(mx);
         countWriter--;
         if (countWriter == 0) {
-            cv.notify_all(); // уведомляем всех, что можно
+            cv.notify_one(); // уведомляем, что можно
         }
     }
 
@@ -85,8 +85,8 @@ int main() {
 
     WriterAndReader rw(true);
     int iterations = 1;
-    int countWriter = 2;
-    int countReader = 6;
+    int countWriter = 6;
+    int countReader = 2;
 
     cout << endl << "Приоритет писателей: " << endl;
     vector<thread> threadsWriter(countWriter);
@@ -94,7 +94,7 @@ int main() {
     for (int i = 0; i < countWriter; ++i) {
         threadsWriter[i] = thread(writer, ref(rw), i+1, iterations);
     }
-    this_thread::sleep_for(chrono::milliseconds(2000));
+    //this_thread::sleep_for(chrono::milliseconds(2000));
     for (int i = 0; i < countReader; ++i) {
         threadsReader[i] = thread(reader, ref(rw), i+1, iterations);
     }
