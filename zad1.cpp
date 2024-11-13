@@ -14,7 +14,7 @@ public:
 
     void wait() {
         unique_lock<mutex> lock(mx);
-        while (count == 0) {
+        while (count <= 0) {
             condition.wait(lock);
         }
         count--;
@@ -23,6 +23,32 @@ public:
     void signal() {
         unique_lock<mutex> lock(mx);
         count++;
+        condition.notify_one(); // разблокировка ожидающего потока
+    }
+
+private:
+    mutex mx;
+    condition_variable condition;
+    int count;
+};
+
+class SemaphoreSlim {
+public:
+    SemaphoreSlim() : count(1) {}
+
+    void wait() {
+        unique_lock<mutex> lock(mx);
+        while (count <= 0) {
+            condition.wait(lock);
+        }
+        count--;
+    }
+
+    void signal() {
+        {
+            unique_lock<mutex> lock(mx);
+            count++;
+        }
         condition.notify_one(); // разблокировка ожидающего потока
     }
 
@@ -102,6 +128,15 @@ public:
         sema.signal();
     }
 
+    void genRandCharSemaphoreSlim(int threadId, int countSimv) {
+        semaslim.wait();
+        for (int i = 0; i < countSimv; ++i) {
+            char random_char = 32 + rand() % 95;
+            cout << "Поток " << threadId << ": " << random_char << endl;
+        }
+        semaslim.signal();
+    }
+
     void genRandCharBarrier(int threadId, int countSimv) {
         for (int i = 0; i < countSimv; ++i) {
             lock_guard<mutex> lock(mx);
@@ -143,6 +178,7 @@ public:
 private:
     mutex mx;
     Semaphore sema;
+    SemaphoreSlim semaslim;
     Barrier barrier;
     atomic_flag spinlock = ATOMIC_FLAG_INIT;
     Monitor monitor;
@@ -179,6 +215,20 @@ int main() {
         genRandChar generator(countThreads);
         for (int i = 0; i < countThreads; ++i) {
             threads[i] = thread([&] () { generator.genRandCharSemaphore(i, countSimv); });
+            this_thread::sleep_for(chrono::milliseconds(100));
+        }
+        for (int i = 0; i < countThreads; ++i) {
+            threads[i].join();
+        }
+    }
+    cout << "----------------------------" << endl;
+
+    cout << endl << "SemaphoreSlim:" << "\n----------------------------\n";
+    {
+        Timer t;
+        genRandChar generator(countThreads);
+        for (int i = 0; i < countThreads; ++i) {
+            threads[i] = thread([&] () { generator.genRandCharSemaphoreSlim(i, countSimv); });
             this_thread::sleep_for(chrono::milliseconds(100));
         }
         for (int i = 0; i < countThreads; ++i) {
