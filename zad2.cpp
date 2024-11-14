@@ -11,36 +11,46 @@ using namespace std;
 class Zal {
 public:
     void addTraining() {
-        while (true) {
+        int n;
+        cout << "Введите кол-во тренировок: ";
+        cin >> n;
+
+        for (int i = 0; i < n; ++i) {
             Training training;
-            cout << endl << "Введите дату тренировки, формат ввода: dd-mm-yyyy(Для завершения - exit): ";
-            cin >> training.date;
-            if (training.date == "exit") {
-                cout << endl;
-                return;
+
+            // дата
+            while (true) {
+                int day = 1 + rand() % 30;
+                int month = 1 + rand() % 11;
+                int year = 2000 + rand() % 24;
+                string date = to_string(day) + '-' + to_string(month) + '-' + to_string(year);
+                if (checkDate(date)) {
+                    training.date = date;
+                    break;
+                }
             }
-            while (!checkDate(training.date)) {
-                cout << "Нарушены правила записи даты, повторите ввод: ";
-                cin >> training.date;
-                if (training.date == "exit") break;
-                
+
+            // время
+            while (true) {
+                int hours = 0 + rand() % 23;
+                int minute = 0 + rand() % 60;
+                string time = to_string(hours) + ':' + to_string(minute);
+                if (checkTime(time)) {
+                    training.time = time;
+                    break;
+                }
             }
-            cout << "Введите время тренировки, формат ввода: hh:mm: ";
-            cin >> training.time;
-            while (!checkTime(training.time)) {
-                cout << "Нарушены правила записи времени, повторите ввод: ";
-                cin >> training.time;
-            }
-            cout << "Введите имя тренера: ";
-            cin >> training.coach;
+            
+            // тренер
+            char coach = 32 + rand() % 95;
+            training.coach = coach;
 
             trainings.push_back(training);
         }
     }
 
-    void getDayWeek(int& dayweek) {
-        lock_guard<mutex> lock(mx);
-        for (int i = 0; i < trainings.size(); ++i) {
+    void getDayWeek(int& dayweek, int start, int end) {
+        for (int i = start; i < end; ++i) {
             int day, month, year;
             stringstream stream(trainings[i].date);
             string token;
@@ -59,19 +69,22 @@ public:
             int weekday = date.tm_wday; // определяем день недели
             
             if (dayweek == weekday) {
+                lock_guard<mutex> lock(mx);
                 cout << "Дата: " << trainings[i].date << " | " << "Время: " << trainings[i].time << " | " << "Тренер: " << trainings[i].coach << endl;
             }
         }
+           
     }
 
-    
-private:
     struct Training {
-        string date; // 
+        string date; // dd-mm-yyyy
         string time; // hh:mm
         string coach;
     };
+
     vector<Training> trainings;
+    
+private:
     mutex mx;
 
     bool checkDate(string& date) {
@@ -104,6 +117,7 @@ private:
 
 
 int main() {
+    srand(time(0));
 
     Zal zal;
 
@@ -112,36 +126,44 @@ int main() {
         string choice;
         cout << "Ваш выбор: ";
         cin >> choice;
+
         if (choice == "1") zal.addTraining();
+        
         else if (choice == "2") {
             int dayweek;
             cout << endl << "Введите день недели для поиска тренировок(0 - воскресенье, 1 - понедельник, ..., 6 - суббота): ";
             cin >> dayweek;
-            int countTread;
-            cout << "Введите кол-во потоков: ";
-            cin >> countTread;
             cout << endl;
             {
                 Timer t;
                 cout << "Однопоточная обработка: " << endl;
-                zal.getDayWeek(dayweek);
+                zal.getDayWeek(dayweek, 0, zal.trainings.size());
             }
-    
+
+            int countTread;
+            cout << "Введите кол-во потоков: ";
+            cin >> countTread;
+            int size = zal.trainings.size();
+            int chunkSize = size / countTread;
             {
                 Timer t;
                 cout << endl << "Многопоточная обработка: " << endl;
                 vector<thread> threads(countTread);
                 for (int i = 0; i < countTread; ++i) {
-                    threads[i] = thread([&zal, &dayweek] () { zal.getDayWeek(dayweek); });
+                    int start = i * chunkSize;
+                    int end = (i == countTread - 1) ? size : start + chunkSize; // Обработка последнего потока
+                    threads[i] = thread([&zal, &dayweek, &start, &end] () { zal.getDayWeek(dayweek, start, end); });
                 }
                 for (int i = 0; i < countTread; ++i) {
                     threads[i].join();
                 }
             }
+
         } else if (choice == "3") {
             cout << "Выход..." << endl;
             break;
         }
+        
         else cout << "Ошибка, нет такого действия!" << endl;
     }
 
