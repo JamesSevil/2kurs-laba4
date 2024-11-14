@@ -93,7 +93,6 @@ public:
     }
 
     void wait() {
-        condition_variable cv;
         unique_lock<mutex> lock(mx);
         cv.wait(lock); // Ожидание сигнала
     }
